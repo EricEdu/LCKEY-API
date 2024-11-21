@@ -1,0 +1,91 @@
+#include <Keypad.h>
+#include <Servo.h>
+
+Servo myservo;
+
+// Configuração do teclado
+const byte ROWS = 4; // 4 linhas
+const byte COLS = 3; // 3 colunas
+char keys[ROWS][COLS] = {
+  {'1', '2', '3'},
+  {'4', '5', '6'},
+  {'7', '8', '9'},
+  {'*', '0', '#'}
+};
+
+byte rowPins[ROWS] = {8, 7, 6, 5};  // 4 pinos para as linhas
+byte colPins[COLS] = {4, 3, 2};    // 3 pinos para as colunas
+
+Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+
+int pos = 0;    // Variável para armazenar a posição do servo
+char inputPassword[7]; // Buffer para armazenar a senha digitada
+byte inputIndex = 0;
+
+unsigned long previousMillis = 0; // Armazena o tempo do último movimento
+const long interval = 15; // Intervalo entre os movimentos do servo (em ms)
+
+bool movingToMax = false; // Controle do movimento para 180 graus
+bool movingToMin = false; // Controle do movimento de volta para 0 graus
+
+void setup() {
+  myservo.attach(9);  // Conecta o servo ao pino 9
+  Serial.begin(9600); // Inicia a comunicação serial
+  Serial.println("Arduino pronto");
+}
+
+void loop() {
+  char key = keypad.getKey(); // Verifica se uma tecla foi pressionada
+
+  if (key) {
+    if (key == '#') { // Envia a senha quando a tecla '#' for pressionada
+      Serial.print("Senha enviada: ");
+      Serial.println(inputPassword);
+      Serial.println(inputPassword); // Envia a senha para o Python
+      inputIndex = 0; // Reinicia o índice para próxima entrada
+      memset(inputPassword, 0, sizeof(inputPassword)); // Limpa o buffer
+
+      // Aguarda a resposta do Python
+      while (Serial.available() == 0) {
+        // Espera até que o Python envie uma resposta
+      }
+      String response = Serial.readString();
+      response.trim(); // Remove espaços em branco extras
+
+      if (response == "true") {
+        Serial.println("Senha correta! Movendo o servo.");
+        movingToMax = true;
+      } else {
+        Serial.println("Senha incorreta.");
+      }
+    } else {
+      // Adiciona o caractere ao buffer de senha
+      if (inputIndex < sizeof(inputPassword) - 1) {
+        inputPassword[inputIndex] = key;
+        inputIndex++;
+      }
+    }
+  }
+
+  // Se estamos movendo o servo, atualiza a posição
+  unsigned long currentMillis = millis();
+  if (movingToMax && currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    pos++; // Aumenta a posição para mover o servo
+    myservo.write(pos);
+    if (pos >= 180) {
+      movingToMax = false; // Alcançou 180 graus
+      delay(2000); // Pausa por 2 segundos antes de voltar
+      movingToMin = true;
+    }
+  }
+
+  if (movingToMin && currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    pos--; // Diminui a posição para mover o servo
+    myservo.write(pos);
+    if (pos <= 0) {
+      movingToMin = false; // Retornou à posição 0
+    }
+  }
+}
